@@ -1,8 +1,41 @@
 /*
- * PAC Flight Code
- * @version: 10/21/15
- * @author Antonio Menarde
- */
+ PAC Flight Code
+ @version: 10/22/15
+ @author Antonio Menarde
+ 
+Section 1: Declarations
+  1.1 Sanity Check
+  1.2 LED Declarations
+  1.3 Temperature Analog-in Declarations
+  1.4 SD Declarations
+  1.5 IMU Declarations
+  1.6 GPS Declarations
+  1.7 inDryBox Utility
+  1.8 Nichrome Declarations
+  1.9 Timing data
+
+Section 2: Setup
+  2.1 Initializations
+  2.2 GPS Setup
+  2.3 Nichrome Setup
+  2.4 IMU Setup
+  2.5 LED Setup
+
+Section 3: Loop
+  3.1 GPS Section
+  3.2 IMU Section
+  3.3 Sanity and Nichrome
+
+Section 4: Functions
+  4.1 IMU
+  4.2 GPS
+    4.2.1 Interfacing GPS
+    4.2.2 GPS Boundary Box
+    4.2.3 GPS Falling
+  4.3 Nichrome
+  4.4 Temperature Sensors: Current 
+  4.5 Sanity
+*/
 
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
@@ -18,30 +51,32 @@
 #include <SPI.h>
 #include <SoftwareSerial.h>
 
-//Sanity Check
+//Section 1: Declarations
+
+//1.1 Sanity Check
 boolean sane = false;
 
-//LED Declerations
+//1.2 LED Declarations
 const int LED_GREEN = 36;
 const int LED_YELLOW = 38;
 const int LED_RED = 40;
 
-//Temperature Analog-in Declerations
+//1.3 Temperature Analog-in Declarations
 const int TEMP1_PIN = A0;
 const int TEMP2_PIN = A1;
 
-//SD Declerations
+//1.4 SD Declarations
 int cs_pin = 53;
 int sd_pow_pin = 9;
 
-//IMU Declerations
+//1.5 IMU Declarations
 /* Assign a unique ID to the sensors */
 Adafruit_LSM303_Accel_Unified accel = Adafruit_LSM303_Accel_Unified(30301);
 Adafruit_LSM303_Mag_Unified   mag   = Adafruit_LSM303_Mag_Unified(30302);
 Adafruit_BMP085_Unified       bmp   = Adafruit_BMP085_Unified(18001);
 Adafruit_L3GD20_Unified       gyro  = Adafruit_L3GD20_Unified(20);
 
-//GPS Declerations
+//1.6 GPS Declarations
 SoftwareSerial GPSSerial(10, 11);
   //Boundary Box UPDATE DAY OF LAUNCH WITH MOST RECENT SIMULATION
 unsigned long minLong = 0;
@@ -53,29 +88,29 @@ unsigned long maxAlt = 50000; //measures in meters
 unsigned long lat = -1; 
 unsigned long longit = -1;
 unsigned long currAlt = -1; //altitude is in tens of meters CHECK
-  //Timing data
+
+//1.7 inDryBox Utility
+#define SENTENCE_SIZE 75
+char sentence[SENTENCE_SIZE];
+
+//1.8 Nichrome Declarations
+const int NICHROME_GATE_PIN = 32;
+const int NICHROME_EXPERIMENT_PIN = 34;
+boolean nichromeStarted = false;
+unsigned long nichromeEndTime = 0xFFFFFFFFL;
+boolean nichromeFinished = false;
+
+//1.9 Timing data
 unsigned int startTime;
 unsigned int sanityCheckTime = 0;
 boolean initDone;
 unsigned int calibrateTime = 10000; //milliseconds until performs sanityCheck
 
-  //inDryBox Utility
-#define SENTENCE_SIZE 75
-char sentence[SENTENCE_SIZE];
-
-//Nichrome Declerations
-const int NICHROME_GATE_PIN = 32;
-const int NICHROME_EXPERIMENT_PIN = 34;
-
-boolean nichromeStarted = false;
-unsigned long nichromeEndTime = 0xFFFFFFFFL;
-boolean nichromeFinished = false;
-
+//Section 2: Setup
 void setup() {
-  //Begins
-    //Serial
+ //2.1 Initializations
   Serial.begin(9600); //115200
-    //SD stuff
+  //SD stuff
   SPI.begin();
   pinMode(cs_pin, OUTPUT);
   pinMode(sd_pow_pin, OUTPUT);
@@ -87,7 +122,7 @@ void setup() {
     Serial.println("Could connect with SD");
   }
   
-  //GPS Setup
+//2.2 GPS Setup
   initGPS();
   updateGPS();
   delay(10000);
@@ -97,13 +132,13 @@ void setup() {
   delay(1000);
   updateGPS();
 
-  //Nichrome Setup
+//2.3 Nichrome Setup
   initNichrome();
 
-  //IMU Setup
+//2.4 IMU Setup
   initIMU();
 
-  //LED Setup
+//2.5 LED Setup
   pinMode(LED_GREEN, OUTPUT);
   pinMode(LED_YELLOW, OUTPUT);
   pinMode(LED_RED, OUTPUT);
@@ -112,15 +147,16 @@ void setup() {
 
 }
 
+//Section 3: Loop
 void loop() {
-  //GPS Section
+//3.1 GPS Section
   updateGPS();
   updateMaxAlt();
   
-  //IMU Section
+//3.2 IMU Section
   runIMU();
 
-  //Sanity
+//3.3 Sanity and Nichrome
   if(!sane){
     sane = sanityCheck();
   } 
@@ -132,9 +168,8 @@ void loop() {
 
 }
 
-//============================================================
-//FUNCTIONS
-  //IMU==========================================
+//Section 4: Functions
+//4.1 IMU
 /* Initialise the sensors */
 void initIMU(){
   if(!accel.begin())
@@ -269,7 +304,8 @@ void displaySensorDetails(void)
   delay(500);
 }
 
-  //GPS==========================================
+//4.2 GPS
+//4.2.1 Interfacing GPS
 void initGPS() {
   GPSSerial.begin(9600);
 }
@@ -402,6 +438,7 @@ void GPSSD()
   }      
 }
 
+//4.2.2 GPS Boundary Box
 //CHECK IF THE BALLOON IS IN THE BOUNDARY BOX
 boolean inBdryBox() {
   if ((lat <= maxLat) && (lat >= minLat) && (longit <= maxLong) && (longit >= minLong) && (currAlt <= 29000)) 
@@ -437,6 +474,7 @@ void getField(char* buffer, int index)
   buffer[fieldPos] = '\0';
 }
 
+//4.2.3 GPS Falling
 //CHECK IF THE BALLOON HAS DESCENDED FROM ITS PEAK ALTITUDE
 boolean isFalling() {
   if (currAlt + 500 < maxAlt)
@@ -449,8 +487,7 @@ boolean isFalling() {
   }
 }
 
-
-//NICHROME STUFF
+//4.3 Nichrome
 void nichromeCheck()
 {
   if (!inBdryBox())
@@ -495,7 +532,7 @@ void startNichrome()
   }
 }
 
-//Temperature Sensors: Current 
+//4.4 Temperature Sensors: Current 
 void readTempVoltage()
 {
   float tempVoltage1 = analogRead(TEMP1_PIN);
@@ -515,7 +552,7 @@ void readTempVoltage()
  }       
 }
 
-//SANITY
+//4.5 Sanity
 boolean sanityCheck()
 {
   Serial.println("Doing Sanitycheck");
