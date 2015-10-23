@@ -351,8 +351,8 @@ void updateMaxAlt()
     unsigned long longMIN = 0;
     longit = 0;
     Serial.println("---");
-    Serial.print("Lat: ");
-    getField(field, 2); // Latitude number
+
+    getField(field, 2); // Latitude number in deg/min/sec
     for (int i = 0; i < 2; i++)
     {
       latDEG = 10 * latDEG + (field[i] - '0');
@@ -365,11 +365,10 @@ void updateMaxAlt()
       }
     }
     lat = (latDEG * 100000 + latMIN / 6);
-    Serial.print(field);
+
     getField(field, 3); // N
-    Serial.print(field);
-    Serial.print(" Long: ");
-    getField(field, 4); // Longitude number
+
+    getField(field, 4); // Longitude number in deg/min/sec
     for (int i = 0; i < 3; i++)
     {
       longDEG = 10 * longDEG + (field[i] - '0');
@@ -382,10 +381,9 @@ void updateMaxAlt()
       }
     }
     longit = (longDEG * 100000 + longMIN / 6);
-    Serial.print(field);
+
     getField(field, 5); // W
-    Serial.print(field);
-    Serial.print(" Alt: ");
+
     for(int i=0;i<10;i++)
       field[i]=0;
     getField(field, 9); // Altitude number
@@ -401,6 +399,7 @@ void updateMaxAlt()
     Serial.print(field); //182.2
     getField(field, 10); // Meters
     Serial.println(field); //m
+    // Print lat, long, and alt in degree and decimal form
     Serial.print("Lat: ");
     Serial.print(lat);
     Serial.print(" Long: ");
@@ -630,4 +629,3 @@ void sanitySerial_SD_LED(boolean bdryBool, boolean fallingBool, boolean gpsBool)
           Serial.println("error opening sanity.txt");
         }       
 }
-
