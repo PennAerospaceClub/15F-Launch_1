@@ -12,7 +12,7 @@ Section 1: Declarations
   1.6 GPS Declarations
   1.7 inDryBox Utility
   1.8 Nichrome Declarations
-  1.9 Timing data
+  1.9 Timing Declarations
 
 Section 2: Setup
   2.1 Initializations
@@ -78,16 +78,16 @@ Adafruit_L3GD20_Unified       gyro  = Adafruit_L3GD20_Unified(20);
 
 //1.6 GPS Declarations
 SoftwareSerial GPSSerial(10, 11);
-  //Boundary Box UPDATE DAY OF LAUNCH WITH MOST RECENT SIMULATION
+//Boundary Box UPDATE DAY OF LAUNCH WITH MOST RECENT SIMULATION
 unsigned long minLong = 0;
 unsigned long maxLong = 0;
 unsigned long minLat = 0;
 unsigned long maxLat = 0;
 unsigned long maxAlt = 50000; //measures in meters
-  //Location Data
+//Initialize Location Data
 unsigned long lat = -1; 
 unsigned long longit = -1;
-unsigned long currAlt = -1; //altitude is in tens of meters CHECK
+unsigned long currAlt = -1; //altitude in meters
 
 //1.7 inDryBox Utility
 #define SENTENCE_SIZE 75
@@ -100,7 +100,7 @@ boolean nichromeStarted = false;
 unsigned long nichromeEndTime = 0xFFFFFFFFL;
 boolean nichromeFinished = false;
 
-//1.9 Timing data
+//1.9 Timing Declarations
 unsigned int startTime;
 unsigned int sanityCheckTime = 0;
 boolean initDone;
