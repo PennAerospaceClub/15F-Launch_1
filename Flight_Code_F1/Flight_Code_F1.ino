@@ -4,15 +4,17 @@
  @author Antonio Menarde
  
 Section 1: Declarations
+  1.0 Servo Declaration
   1.1 Sanity Check
   1.2 LED Declarations
   1.3 Temperature Analog-in Declarations
   1.4 SD Declarations
   1.5 IMU Declarations
   1.6 GPS Declarations
-  1.7 inDryBox Utility
+  1.7 inBdryBox Utility
   1.8 Nichrome Declarations
   1.9 Timing Declarations
+  
 
 Section 2: Setup
   2.1 Initializations
@@ -25,8 +27,9 @@ Section 3: Loop
   3.1 GPS Section
   3.2 IMU Section
   3.3 Sanity and Nichrome
+  3.4 Experiments
 
-Section 4: Functions
+Section 4: Functions 
   4.1 IMU
   4.2 GPS
     4.2.1 Interfacing GPS
@@ -35,6 +38,7 @@ Section 4: Functions
   4.3 Nichrome
   4.4 Temperature Sensors: Current 
   4.5 Sanity
+  4.6 Experiments
 */
 
 #include <Wire.h>
@@ -50,8 +54,15 @@ Section 4: Functions
 #include <SD.h>
 #include <SPI.h>
 #include <SoftwareSerial.h>
+#include <Servo.h> 
 
 //Section 1: Declarations
+
+//1.0 Servo
+Servo myservo;  // create servo object to control a servo 
+                // twelve servo objects can be created on most boards
+ 
+int pos = 0;    // variable to store the servo position 
 
 //1.1 Sanity Check
 boolean sane = false;
@@ -67,7 +78,6 @@ const int TEMP2_PIN = A1;
 
 //1.4 SD Declarations
 int cs_pin = 53;
-int sd_pow_pin = 9;
 
 //1.5 IMU Declarations
 /* Assign a unique ID to the sensors */
@@ -79,15 +89,16 @@ Adafruit_L3GD20_Unified       gyro  = Adafruit_L3GD20_Unified(20);
 //1.6 GPS Declarations
 SoftwareSerial GPSSerial(10, 11);
 //Boundary Box UPDATE DAY OF LAUNCH WITH MOST RECENT SIMULATION
-unsigned long minLong = 0;
-unsigned long maxLong = 0;
-unsigned long minLat = 0;
-unsigned long maxLat = 0;
-unsigned long maxAlt = 50000; //measures in meters
+unsigned long minLong = 3800000;
+unsigned long maxLong = 4200000;
+unsigned long minLat = 7400000;
+unsigned long maxLat = 7600000;
+
 //Initialize Location Data
 unsigned long lat = -1; 
 unsigned long longit = -1;
 unsigned long currAlt = -1; //altitude in meters
+unsigned long maxAlt = 0; //measures in meters
 
 //1.7 inDryBox Utility
 #define SENTENCE_SIZE 75
@@ -95,10 +106,14 @@ char sentence[SENTENCE_SIZE];
 
 //1.8 Nichrome Declarations
 const int NICHROME_GATE_PIN = 32;
-const int NICHROME_EXPERIMENT_PIN = 34;
 boolean nichromeStarted = false;
 unsigned long nichromeEndTime = 0xFFFFFFFFL;
 boolean nichromeFinished = false;
+
+const int NICHROME_EXPERIMENT_PIN = 34;
+boolean nichromeExperimentStarted = false;
+unsigned long nichromeExperimentEndTime = 0xFFFFFFFFL;
+boolean nichromeExperimentFinished = false;
 
 //1.9 Timing Declarations
 unsigned int startTime;
@@ -106,20 +121,38 @@ unsigned int sanityCheckTime = 0;
 boolean initDone;
 unsigned int calibrateTime = 10000; //milliseconds until performs sanityCheck
 
+unsigned int redLightBlinkStop;
+boolean redLightOn = false;
+
+unsigned int greenLightBlinkStop;
+boolean greenLightOn = false;
+
+
 //Section 2: Setup
 void setup() {
+  
+  
+  
  //2.1 Initializations
   Serial.begin(9600); //115200
+
+  //2.5 LED Setup
+  pinMode(LED_GREEN, OUTPUT);
+  digitalWrite(LED_GREEN, HIGH);
+  pinMode(LED_YELLOW, OUTPUT);
+  digitalWrite(LED_YELLOW, HIGH);
+  pinMode(LED_RED, OUTPUT);
+  digitalWrite(LED_RED, HIGH);
+  
+  myservo.attach(9);  // attaches the servo on pin 9 to the servo object 
   //SD stuff
   SPI.begin();
   pinMode(cs_pin, OUTPUT);
-  pinMode(sd_pow_pin, OUTPUT);
-  digitalWrite(sd_pow_pin, HIGH);
-    if(!SD.begin(cs_pin)){
-    Serial.println("Could not connect with SD");
+  if(!SD.begin(cs_pin)){
+    Serial.println("SD not connected");
   }
   else{
-    Serial.println("Could connect with SD");
+    Serial.println("SD Connected");
   }
   
 //2.2 GPS Setup
@@ -134,15 +167,16 @@ void setup() {
 
 //2.3 Nichrome Setup
   initNichrome();
+  initNichromeExperiment();
 
 //2.4 IMU Setup
   initIMU();
 
-//2.5 LED Setup
-  pinMode(LED_GREEN, OUTPUT);
-  pinMode(LED_YELLOW, OUTPUT);
-  pinMode(LED_RED, OUTPUT);
-  
+  delay(10000);
+
+  digitalWrite(LED_GREEN, LOW);
+  digitalWrite(LED_YELLOW, LOW);
+  digitalWrite(LED_RED, LOW);
   Serial.println("SETUP DONE");
 
 }
@@ -151,12 +185,14 @@ void setup() {
 void loop() {
 //3.1 GPS Section
   updateGPS();
-  updateMaxAlt();
+
+  Serial.print("curr alt: "); Serial.print(currAlt); Serial.print(", max alt: "); Serial.print(maxAlt);
   
 //3.2 IMU Section
   runIMU();
 
 //3.3 Sanity and Nichrome
+
   if(!sane){
     sane = sanityCheck();
   } 
@@ -164,6 +200,10 @@ void loop() {
   //Hey should we burn the nichrome or nah?
   nichromeCheck();
   updateNichrome();
+  updateMaxAlt();
+
+  nichromeExperimentCheck();
+  updateNichromeExperiment();
   }
 
 }
@@ -199,7 +239,7 @@ void initIMU(){
   }
   
   /* Display some basic information on this sensor */
-  displaySensorDetails();
+ // displaySensorDetails(); Debug
 }
 
 /* Get a new sensor event */
@@ -207,52 +247,65 @@ void runIMU()
 {
   sensors_event_t event;
 
-  /* Display time */
-  Serial.print(hour()); Serial.print(":"); Serial.print(minute()); Serial.print(":"); Serial.print(second()); Serial.print(", ");
+  File dataFile = SD.open("imu.txt", FILE_WRITE);
+
+  SD.open("imu.txt", FILE_WRITE);
+  if (dataFile) {
+         /* Display time */
+    dataFile.print(hour()); dataFile.print(":"); dataFile.print(minute()); dataFile.print(":"); dataFile.print(second()); dataFile.print(", ");
+      
+    /* Display the results (acceleration is measured in m/s^2) */
+    accel.getEvent(&event);
+    dataFile.print(event.acceleration.x); dataFile.print(", ");
+    dataFile.print(event.acceleration.y); dataFile.print(", ");
+    dataFile.print(event.acceleration.z); dataFile.print(", ");
     
-  /* Display the results (acceleration is measured in m/s^2) */
-  accel.getEvent(&event);
-  Serial.print(event.acceleration.x); Serial.print(", ");
-  Serial.print(event.acceleration.y); Serial.print(", ");
-  Serial.print(event.acceleration.z); Serial.print(", ");
+    
+    /* Display the results (magnetic vector values are in micro-Tesla (uT)) */
+    mag.getEvent(&event);
+    dataFile.print(event.magnetic.x); dataFile.print(", ");
+    dataFile.print(event.magnetic.y); dataFile.print(", ");
+    dataFile.print(event.magnetic.z); dataFile.print(", ");
   
+    /* Display the results (gyrocope values in rad/s) */
+    gyro.getEvent(&event);
+    dataFile.print(event.gyro.x); dataFile.print(", ");
+    dataFile.print(event.gyro.y); dataFile.print(", ");
+    dataFile.print(event.gyro.z); dataFile.print(", ");
   
-  /* Display the results (magnetic vector values are in micro-Tesla (uT)) */
-  mag.getEvent(&event);
-  Serial.print(event.magnetic.x); Serial.print(", ");
-  Serial.print(event.magnetic.y); Serial.print(", ");
-  Serial.print(event.magnetic.z); Serial.print(", ");
-
-  /* Display the results (gyrocope values in rad/s) */
-  gyro.getEvent(&event);
-  Serial.print(event.gyro.x); Serial.print(", ");
-  Serial.print(event.gyro.y); Serial.print(", ");
-  Serial.print(event.gyro.z); Serial.print(", ");
-
-  /* Display the pressure sensor results (barometric pressure is measure in hPa) */
-  bmp.getEvent(&event);
-  if (event.pressure)
-  {
-    /* Display atmospheric pressure in hPa */
-    Serial.print(event.pressure);
-    Serial.print(", ");
-    /* Display ambient temperature in C */
-    float temperature;
-    bmp.getTemperature(&temperature);
-    Serial.print(temperature);
-    Serial.print(F(", "));
-    /* Then convert the atmospheric pressure, SLP and temp to altitude    */
-    /* Update this next line with the current SLP for better results      */
-    float seaLevelPressure = SENSORS_PRESSURE_SEALEVELHPA;
-    Serial.print(bmp.pressureToAltitude(seaLevelPressure,
-                                        event.pressure,
-                                        temperature)); 
-  }
-
-  Serial.println(F(""));
-  delay(100);
+    /* Display the pressure sensor results (barometric pressure is measure in hPa) */
+    bmp.getEvent(&event);
+    if (event.pressure)
+    {
+      /* Display atmospheric pressure in hPa */
+      dataFile.print(event.pressure);
+      dataFile.print(", ");
+      /* Display ambient temperature in C */
+      float temperature;
+      bmp.getTemperature(&temperature);
+      dataFile.print(temperature);
+      dataFile.print(F(", "));
+      /* Then convert the atmospheric pressure, SLP and temp to altitude    */
+      /* Update this next line with the current SLP for better results      */
+      float seaLevelPressure = SENSORS_PRESSURE_SEALEVELHPA;
+      dataFile.print(bmp.pressureToAltitude(seaLevelPressure,
+                                          event.pressure,
+                                          temperature)); 
+    }
+  
+    dataFile.println(F(""));
+    delay(100);
+      
+    dataFile.flush(); 
+    dataFile.close();   
+   }  
+        // if the file isn't open, pop up an error:
+   else {
+      Serial.println("error opening imu.txt");
+   }
 }
-  
+
+ 
 void displaySensorDetails(void)
 {
   sensor_t sensor;
@@ -333,7 +386,9 @@ void updateGPS()
 
 void updateMaxAlt()
 {
-  if (currAlt > maxAlt){
+  Serial.print("New curr alt: ");
+  Serial.println(currAlt);
+  if (currAlt >= maxAlt){
     maxAlt = currAlt;
   }
 }
@@ -342,6 +397,7 @@ void updateMaxAlt()
   void readGPS() {
   char field[20];
   getField(field, 0);
+  Serial.println(field); //Debug
   if (strcmp(field, "$GPGGA") == 0)
   {
     unsigned long latDEG = 0;
@@ -423,8 +479,6 @@ void GPSSD()
      String dataString = latstr + " " + longitstr + " " + currALTstr;
      
      File dataFile = SD.open("gps.txt", FILE_WRITE);
-
-     SD.open("gps.txt", FILE_WRITE);
      if (dataFile) {
         dataFile.println(dataString);
         dataFile.flush(); 
@@ -565,7 +619,7 @@ boolean sanityCheck()
   if (isFalling()){
     fallingBool =  false;
   }
-  if ((currAlt > maxAlt) || (currAlt == -1) || (lat == -1) || (longit == -1)){
+  if ((currAlt == -1) || (lat == -1) || (longit == -1)){
     gpsBool =  false;
   }
 
@@ -587,45 +641,91 @@ void sanitySerial_SD_LED(boolean bdryBool, boolean fallingBool, boolean gpsBool)
      boolean myBdryBool = bdryBool;
      boolean myFallingBool = fallingBool;
      boolean myGpsBool = gpsBool;
-
-     File dataFile = SD.open("gps.txt", FILE_WRITE);
-
-     SD.open("sanity.txt", FILE_WRITE);
-     if (dataFile) {
-          if(!myBdryBool){
-            Serial.println("Sanity: Outside of Boundary Box");
-            dataFile.println("Sanity: Outside of Boundary Box");
-            digitalWrite(LED_GREEN, HIGH);
-          }  
-          else{
-            Serial.println("Sanity: Inside of Boundary Box");
-            dataFile.println("Sanity: Inside of Boundary Box");
-            digitalWrite(LED_GREEN, LOW);
-          }  
-          if(!myFallingBool){
-            Serial.println("Sanity: Falling (bad)");
-            dataFile.println("Sanity: Falling (bad)");
-            digitalWrite(LED_YELLOW, HIGH);
-          }  
-          else{
-            Serial.println("Sanity: Not falling (good)");
-            dataFile.println("Sanity: Not falling (good)");
-            digitalWrite(LED_YELLOW, LOW);
-          }   
-          if(!myGpsBool){
-            Serial.println("Sanity: GPS not updating");
-            dataFile.println("Sanity: GPS not updating");
-            digitalWrite(LED_RED, HIGH);
-          }  
-          else{
-            Serial.println("Sanity: GPS updating");
-            dataFile.println("Sanity: GPS updating");
+      if(!myBdryBool || !myFallingBool || !myGpsBool){
+        //Serial.println("Sanity: Outside of Boundary Box");
+        if(!redLightOn){
+          redLightBlinkStop = millis() + 1000;
+          digitalWrite(LED_RED, HIGH);
+          digitalWrite(LED_GREEN, LOW);
+          redLightOn = true;
+        }
+        else{
+          if(millis() > redLightBlinkStop){
+            redLightOn = false;
             digitalWrite(LED_RED, LOW);
-          }       
-          dataFile.flush(); 
-          dataFile.close();   
-        }  
-        else {
-          Serial.println("error opening sanity.txt");
-        }       
+            digitalWrite(LED_GREEN, LOW);
+          }
+        }
+      }  
+      else{
+          if(!greenLightOn){
+          redLightBlinkStop = millis() + 1000;
+          digitalWrite(LED_RED, LOW);
+          digitalWrite(LED_GREEN, HIGH);
+          greenLightOn = true;
+        }
+        else{
+          if(millis() > greenLightBlinkStop){
+            greenLightOn = false;
+          }
+        }
+      }        
+      Serial.println("sanity checked"); //Debug       
 }
+
+//4.6 Experiments
+void nichromeExperimentCheck()
+{
+  if (isFalling() && currAlt < 1600)
+  {
+    initNichromeExperiment();
+  }  
+  updateNichromeExperiment();
+}
+
+void initNichromeExperiment()
+{
+  pinMode(NICHROME_EXPERIMENT_PIN, OUTPUT);
+  digitalWrite(NICHROME_EXPERIMENT_PIN, LOW);
+  TCCR2B &= B11111001;//increase PWM frequency
+}
+
+void updateNichromeExperiment()
+{
+  if (nichromeExperimentStarted && !nichromeExperimentFinished && nichromeExperimentEndTime < millis()) {
+    Serial.println("NICHROME EXPERIMENT DEACTIVATING");
+    digitalWrite(NICHROME_EXPERIMENT_PIN, LOW);
+    nichromeExperimentFinished = true;
+  }
+}
+
+void startNichromeExperiment()
+{
+  if (!nichromeStarted) {
+    Serial.println("NICHROME ACTIVATING");
+    nichromeExperimentStarted = true;
+    digitalWrite(NICHROME_EXPERIMENT_PIN, HIGH);
+    nichromeExperimentEndTime = millis() + 2000;
+  }
+}
+
+void updateServo()
+{
+  myservo.write(pos);//should start from a zero position
+  delay(300);
+
+  myservo.write(pos+150); //should be at 150 at this point
+  delay(300);
+
+  myservo.write(pos-30); //should be at 120 at this point
+  delay(300);
+
+  myservo.write(pos+15);// should be at 135
+  delay(300);
+
+  myservo.write(pos-65); //should be at 70
+  delay(300); 
+
+  myservo.write(pos-25); // final position should be 45  
+}
+
