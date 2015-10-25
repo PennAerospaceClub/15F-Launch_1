@@ -61,8 +61,8 @@ Section 4: Functions
 //1.0 Servo
 Servo myservo;  // create servo object to control a servo 
                 // twelve servo objects can be created on most boards
- 
 int pos = 0;    // variable to store the servo position 
+int counter = 0;
 
 //1.1 Sanity Check
 boolean sane = false;
@@ -78,6 +78,7 @@ const int TEMP2_PIN = A1;
 
 //1.4 SD Declarations
 int cs_pin = 53;
+boolean sd_connected = false;
 
 //1.5 IMU Declarations
 /* Assign a unique ID to the sensors */
@@ -89,10 +90,10 @@ Adafruit_L3GD20_Unified       gyro  = Adafruit_L3GD20_Unified(20);
 //1.6 GPS Declarations
 SoftwareSerial GPSSerial(10, 11);
 //Boundary Box UPDATE DAY OF LAUNCH WITH MOST RECENT SIMULATION
-unsigned long minLong = 3800000;
-unsigned long maxLong = 4200000;
-unsigned long minLat = 7400000;
-unsigned long maxLat = 7600000;
+unsigned long minLat = 3800000;
+unsigned long maxLat = 4200000;
+unsigned long minLong = 7400000;
+unsigned long maxLong = 7600000;
 
 //Initialize Location Data
 unsigned long lat = -1; 
@@ -153,6 +154,7 @@ void setup() {
   }
   else{
     Serial.println("SD Connected");
+    sd_connected = true;
   }
   
 //2.2 GPS Setup
@@ -179,18 +181,28 @@ void setup() {
   digitalWrite(LED_RED, LOW);
   Serial.println("SETUP DONE");
 
+  if(!sd_connected){
+    digitalWrite(LED_YELLOW, HIGH);
+  }
+
 }
 
 //Section 3: Loop
 void loop() {
+
 //3.1 GPS Section
   updateGPS();
-
-  Serial.print("curr alt: "); Serial.print(currAlt); Serial.print(", max alt: "); Serial.print(maxAlt);
+  updateMaxAlt();
   
 //3.2 IMU Section
   runIMU();
 
+  //temp
+//  readTempVoltage();
+
+  //servo
+  updateServo();
+  
 //3.3 Sanity and Nichrome
 
   if(!sane){
@@ -200,7 +212,6 @@ void loop() {
   //Hey should we burn the nichrome or nah?
   nichromeCheck();
   updateNichrome();
-  updateMaxAlt();
 
   nichromeExperimentCheck();
   updateNichromeExperiment();
@@ -386,10 +397,11 @@ void updateGPS()
 
 void updateMaxAlt()
 {
-  Serial.print("New curr alt: ");
-  Serial.println(currAlt);
   if (currAlt >= maxAlt){
     maxAlt = currAlt;
+  }
+  if(maxAlt > 100000){
+    maxAlt = 0;
   }
 }
 
@@ -494,12 +506,17 @@ void GPSSD()
 //4.2.2 GPS Boundary Box
 //CHECK IF THE BALLOON IS IN THE BOUNDARY BOX
 boolean inBdryBox() {
-  if ((lat <= maxLat) && (lat >= minLat) && (longit <= maxLong) && (longit >= minLong) && (currAlt <= 29000)) 
+  //Serial.print("lat: "); Serial.print(lat); Serial.print(" max lat: "); Serial.print(maxLat); // Debug
+  //Serial.print("long: "); Serial.print(longit); Serial.print(" max long: "); Serial.print(maxLong);
+  //Serial.print("currAlt: "); Serial.print(currAlt);
+  if ((lat < maxLat) && (lat > minLat) && (longit < maxLong) && (longit > minLong) && (currAlt < 29000)) 
   {
+    //Serial.println("I'm in bdry"); //Debug
     return true;
   }
   else
   {
+    //Serial.println("I'm not in bdry"); //Debug
     return false;
   }
 }
@@ -592,7 +609,6 @@ void readTempVoltage()
   float tempVoltage2 = analogRead(TEMP2_PIN);
 
   File dataFile = SD.open("temperature.txt", FILE_WRITE);
-
   SD.open("temperature.txt", FILE_WRITE);
   if (dataFile) {
      dataFile.println((String)tempVoltage1 + "," + (String)tempVoltage2);
@@ -608,7 +624,6 @@ void readTempVoltage()
 //4.5 Sanity
 boolean sanityCheck()
 {
-  Serial.println("Doing Sanitycheck");
   boolean bdryBool = true;
   boolean fallingBool = true;
   boolean gpsBool = true;
@@ -651,6 +666,7 @@ void sanitySerial_SD_LED(boolean bdryBool, boolean fallingBool, boolean gpsBool)
         }
         else{
           if(millis() > redLightBlinkStop){
+            redLightBlinkStop = 0;
             redLightOn = false;
             digitalWrite(LED_RED, LOW);
             digitalWrite(LED_GREEN, LOW);
@@ -669,8 +685,7 @@ void sanitySerial_SD_LED(boolean bdryBool, boolean fallingBool, boolean gpsBool)
             greenLightOn = false;
           }
         }
-      }        
-      Serial.println("sanity checked"); //Debug       
+      }         
 }
 
 //4.6 Experiments
@@ -711,21 +726,66 @@ void startNichromeExperiment()
 
 void updateServo()
 {
-  myservo.write(pos);//should start from a zero position
-  delay(300);
-
-  myservo.write(pos+150); //should be at 150 at this point
-  delay(300);
-
-  myservo.write(pos-30); //should be at 120 at this point
-  delay(300);
-
-  myservo.write(pos+15);// should be at 135
-  delay(300);
-
-  myservo.write(pos-65); //should be at 70
-  delay(300); 
-
-  myservo.write(pos-25); // final position should be 45  
+  File dataFile = SD.open("servo.txt", FILE_WRITE);
+  SD.open("servo.txt", FILE_WRITE);
+  if (dataFile) { 
+    if(counter = 0){              
+      myservo.write(30);
+      delay(100);
+      int sensorValue = analogRead(A4); 
+      dataFile.print("30: ") ;
+      dataFile.println(sensorValue); 
+      delay(1); 
+      counter++;
+    }
+    else if(counter == 1){
+      myservo.write(60);
+      delay(100);
+      int sensorValue = analogRead(A4);
+      dataFile.print("60: ") ;
+      dataFile.println(sensorValue); 
+      delay(1); 
+      counter++;
+    }
+    else if(counter == 2){
+      myservo.write(90);
+      delay(100);
+      int sensorValue = analogRead(A4);
+      dataFile.print("90: ") ;
+      dataFile.println(sensorValue); 
+      delay(1); 
+      counter++;
+    }
+    else if(counter == 3){
+      myservo.write(120);
+      delay(100);
+      int sensorValue = analogRead(A4);
+      dataFile.print("120: ") ;
+      dataFile.println(sensorValue); 
+      delay(1); 
+      counter++;
+    }
+    else if(counter == 4){
+      myservo.write(150);
+      delay(100);
+      int sensorValue = analogRead(A4);
+      dataFile.print("150: ") ;
+      dataFile.println(sensorValue); 
+      delay(1); 
+      counter++;
+    }
+    else if(counter == 5){
+      myservo.write(180);
+      delay(100);
+      int sensorValue = analogRead(A4);
+      dataFile.print("180: ") ;
+      dataFile.println(sensorValue); 
+      delay(1); 
+      counter = 0;
+    }
+    dataFile.flush(); 
+    dataFile.close(); 
+  }  
 }
+
 
