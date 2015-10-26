@@ -90,10 +90,10 @@ Adafruit_L3GD20_Unified       gyro  = Adafruit_L3GD20_Unified(20);
 //1.6 GPS Declarations
 SoftwareSerial GPSSerial(10, 11);
 //Boundary Box UPDATE DAY OF LAUNCH WITH MOST RECENT SIMULATION
-unsigned long minLat = 3800000;
-unsigned long maxLat = 4200000;
-unsigned long minLong = 7400000;
-unsigned long maxLong = 7600000;
+unsigned long minLat = 3970000;
+unsigned long maxLat = 4066000;
+unsigned long maxLong = 7760000;
+unsigned long minLong = 7499000;
 
 //Initialize Location Data
 unsigned long lat = -1; 
@@ -106,7 +106,7 @@ unsigned long maxAlt = 0; //measures in meters
 char sentence[SENTENCE_SIZE];
 
 //1.8 Nichrome Declarations
-const int NICHROME_GATE_PIN = 32;
+const int NICHROME_GATE_PIN = 30;
 boolean nichromeStarted = false;
 unsigned long nichromeEndTime = 0xFFFFFFFFL;
 boolean nichromeFinished = false;
@@ -115,6 +115,8 @@ const int NICHROME_EXPERIMENT_PIN = 34;
 boolean nichromeExperimentStarted = false;
 unsigned long nichromeExperimentEndTime = 0xFFFFFFFFL;
 boolean nichromeExperimentFinished = false;
+
+int nichromeCounter = 0;
 
 //1.9 Timing Declarations
 unsigned int startTime;
@@ -150,10 +152,10 @@ void setup() {
   SPI.begin();
   pinMode(cs_pin, OUTPUT);
   if(!SD.begin(cs_pin)){
-    Serial.println("SD not connected");
+    //Serial.println("SD not connected");
   }
   else{
-    Serial.println("SD Connected");
+    //Serial.println("SD Connected");
     sd_connected = true;
   }
   
@@ -179,7 +181,7 @@ void setup() {
   digitalWrite(LED_GREEN, LOW);
   digitalWrite(LED_YELLOW, LOW);
   digitalWrite(LED_RED, LOW);
-  Serial.println("SETUP DONE");
+  //Serial.println("SETUP DONE");
 
   if(!sd_connected){
     digitalWrite(LED_YELLOW, HIGH);
@@ -198,10 +200,10 @@ void loop() {
   runIMU();
 
   //temp
-//  readTempVoltage();
+ // readTempVoltage();
 
   //servo
-  updateServo();
+//  updateServo();
   
 //3.3 Sanity and Nichrome
 
@@ -226,26 +228,26 @@ void initIMU(){
   if(!accel.begin())
   {
     /* There was a problem detecting the ADXL345 ... check your connections */
-    Serial.println(F("Ooops, no LSM303 detected ... Check your wiring!"));
+    //Serial.println(F("Ooops, no LSM303 detected ... Check your wiring!"));
     while(1);
   }
   if(!mag.begin())
   {
     /* There was a problem detecting the LSM303 ... check your connections */
-    Serial.println("Ooops, no LSM303 detected ... Check your wiring!");
+    //Serial.println("Ooops, no LSM303 detected ... Check your wiring!");
     while(1);
   }
   if(!bmp.begin())
   {
     /* There was a problem detecting the BMP085 ... check your connections */
-    Serial.print("Ooops, no BMP085 detected ... Check your wiring or I2C ADDR!");
+    //Serial.print("Ooops, no BMP085 detected ... Check your wiring or I2C ADDR!");
     while(1);
     
   }
   if(!gyro.begin())
   {
     /* There was a problem detecting the L3GD20 ... check your connections */
-    Serial.print("Ooops, no L3GD20 detected ... Check your wiring or I2C ADDR!");
+    //Serial.print("Ooops, no L3GD20 detected ... Check your wiring or I2C ADDR!");
     while(1);
   }
   
@@ -305,14 +307,18 @@ void runIMU()
     }
   
     dataFile.println(F(""));
-    delay(100);
-      
-    dataFile.flush(); 
+    delay(300);
+  
+     
     dataFile.close();   
+    delay(300);
    }  
         // if the file isn't open, pop up an error:
    else {
-      Serial.println("error opening imu.txt");
+      //Serial.println("imu text fail");
+      digitalWrite(LED_YELLOW, HIGH);
+      delay(100);
+      digitalWrite(LED_YELLOW, LOW);
    }
 }
 
@@ -322,48 +328,48 @@ void displaySensorDetails(void)
   sensor_t sensor;
   
   accel.getSensor(&sensor);
-  Serial.println(F("----------- ACCELEROMETER ----------"));
-  Serial.print  (F("Sensor:       ")); Serial.println(sensor.name);
-  Serial.print  (F("Driver Ver:   ")); Serial.println(sensor.version);
-  Serial.print  (F("Unique ID:    ")); Serial.println(sensor.sensor_id);
-  Serial.print  (F("Max Value:    ")); Serial.print(sensor.max_value); Serial.println(F(" m/s^2"));
-  Serial.print  (F("Min Value:    ")); Serial.print(sensor.min_value); Serial.println(F(" m/s^2"));
-  Serial.print  (F("Resolution:   ")); Serial.print(sensor.resolution); Serial.println(F(" m/s^2"));
-  Serial.println(F("------------------------------------"));
-  Serial.println(F(""));
+  //Serial.println(F("----------- ACCELEROMETER ----------"));
+  //Serial.print  (F("Sensor:       ")); //Serial.println(sensor.name);
+  //Serial.print  (F("Driver Ver:   ")); //Serial.println(sensor.version);
+  //Serial.print  (F("Unique ID:    ")); //Serial.println(sensor.sensor_id);
+  //Serial.print  (F("Max Value:    ")); //Serial.print(sensor.max_value); //Serial.println(F(" m/s^2"));
+  //Serial.print  (F("Min Value:    ")); //Serial.print(sensor.min_value); //Serial.println(F(" m/s^2"));
+  //Serial.print  (F("Resolution:   ")); //Serial.print(sensor.resolution); //Serial.println(F(" m/s^2"));
+  //Serial.println(F("------------------------------------"));
+  //Serial.println(F(""));
 
   gyro.getSensor(&sensor);
-  Serial.println(F("------------- GYROSCOPE -----------"));
-  Serial.print  (F("Sensor:       ")); Serial.println(sensor.name);
-  Serial.print  (F("Driver Ver:   ")); Serial.println(sensor.version);
-  Serial.print  (F("Unique ID:    ")); Serial.println(sensor.sensor_id);
-  Serial.print  (F("Max Value:    ")); Serial.print(sensor.max_value); Serial.println(F(" rad/s"));
-  Serial.print  (F("Min Value:    ")); Serial.print(sensor.min_value); Serial.println(F(" rad/s"));
-  Serial.print  (F("Resolution:   ")); Serial.print(sensor.resolution); Serial.println(F(" rad/s"));
-  Serial.println(F("------------------------------------"));
-  Serial.println(F(""));
+  //Serial.println(F("------------- GYROSCOPE -----------"));
+  //Serial.print  (F("Sensor:       ")); //Serial.println(sensor.name);
+  //Serial.print  (F("Driver Ver:   ")); //Serial.println(sensor.version);
+  //Serial.print  (F("Unique ID:    ")); //Serial.println(sensor.sensor_id);
+  //Serial.print  (F("Max Value:    ")); //Serial.print(sensor.max_value); //Serial.println(F(" rad/s"));
+  //Serial.print  (F("Min Value:    ")); //Serial.print(sensor.min_value); //Serial.println(F(" rad/s"));
+  //Serial.print  (F("Resolution:   ")); //Serial.print(sensor.resolution); //Serial.println(F(" rad/s"));
+  //Serial.println(F("------------------------------------"));
+  //Serial.println(F(""));
 
   mag.getSensor(&sensor);
-  Serial.println(F("----------- MAGNETOMETER -----------"));
-  Serial.print  (F("Sensor:       ")); Serial.println(sensor.name);
-  Serial.print  (F("Driver Ver:   ")); Serial.println(sensor.version);
-  Serial.print  (F("Unique ID:    ")); Serial.println(sensor.sensor_id);
-  Serial.print  (F("Max Value:    ")); Serial.print(sensor.max_value); Serial.println(F(" uT"));
-  Serial.print  (F("Min Value:    ")); Serial.print(sensor.min_value); Serial.println(F(" uT"));
-  Serial.print  (F("Resolution:   ")); Serial.print(sensor.resolution); Serial.println(F(" uT"));  
-  Serial.println(F("------------------------------------"));
-  Serial.println(F(""));
+  //Serial.println(F("----------- MAGNETOMETER -----------"));
+  //Serial.print  (F("Sensor:       ")); //Serial.println(sensor.name);
+  //Serial.print  (F("Driver Ver:   ")); //Serial.println(sensor.version);
+  //Serial.print  (F("Unique ID:    ")); //Serial.println(sensor.sensor_id);
+  //Serial.print  (F("Max Value:    ")); //Serial.print(sensor.max_value); //Serial.println(F(" uT"));
+  //Serial.print  (F("Min Value:    ")); //Serial.print(sensor.min_value); //Serial.println(F(" uT"));
+  //Serial.print  (F("Resolution:   ")); //Serial.print(sensor.resolution); //Serial.println(F(" uT"));  
+  //Serial.println(F("------------------------------------"));
+  //Serial.println(F(""));
 
   bmp.getSensor(&sensor);
-  Serial.println(F("-------- PRESSURE/ALTITUDE ---------"));
-  Serial.print  (F("Sensor:       ")); Serial.println(sensor.name);
-  Serial.print  (F("Driver Ver:   ")); Serial.println(sensor.version);
-  Serial.print  (F("Unique ID:    ")); Serial.println(sensor.sensor_id);
-  Serial.print  (F("Max Value:    ")); Serial.print(sensor.max_value); Serial.println(F(" hPa"));
-  Serial.print  (F("Min Value:    ")); Serial.print(sensor.min_value); Serial.println(F(" hPa"));
-  Serial.print  (F("Resolution:   ")); Serial.print(sensor.resolution); Serial.println(F(" hPa"));  
-  Serial.println(F("------------------------------------"));
-  Serial.println(F(""));
+  //Serial.println(F("-------- PRESSURE/ALTITUDE ---------"));
+  //Serial.print  (F("Sensor:       ")); //Serial.println(sensor.name);
+  //Serial.print  (F("Driver Ver:   ")); //Serial.println(sensor.version);
+  //Serial.print  (F("Unique ID:    ")); //Serial.println(sensor.sensor_id);
+  //Serial.print  (F("Max Value:    ")); //Serial.print(sensor.max_value); //Serial.println(F(" hPa"));
+  //Serial.print  (F("Min Value:    ")); //Serial.print(sensor.min_value); //Serial.println(F(" hPa"));
+  //Serial.print  (F("Resolution:   ")); //Serial.print(sensor.resolution); //Serial.println(F(" hPa"));  
+  //Serial.println(F("------------------------------------"));
+  //Serial.println(F(""));
   
   delay(500);
 }
@@ -409,7 +415,7 @@ void updateMaxAlt()
   void readGPS() {
   char field[20];
   getField(field, 0);
-  Serial.println(field); //Debug
+  //Serial.println(field); //Debug
   if (strcmp(field, "$GPGGA") == 0)
   {
     unsigned long latDEG = 0;
@@ -418,7 +424,7 @@ void updateMaxAlt()
     unsigned long longDEG = 0;
     unsigned long longMIN = 0;
     longit = 0;
-    Serial.println("---");
+    //Serial.println("---");
 
     getField(field, 2); // Latitude number in deg/min/sec
     for (int i = 0; i < 2; i++)
@@ -464,16 +470,16 @@ void updateMaxAlt()
       }
     }
     currAlt = currAlt / 10; //Marcos* -- Not sure if we should do this, loses the last decimal point, I know it's not important
-    Serial.print(field); //182.2
+    ////Serial.print(field); //182.2
     getField(field, 10); // Meters
-    Serial.println(field); //m
+    ////Serial.println(field); //m
     // Print lat, long, and alt in degree and decimal form
-    Serial.print("Lat: ");
-    Serial.print(lat);
-    Serial.print(" Long: ");
-    Serial.print(longit);
-    Serial.print(" Current Alt: ");
-    Serial.println(currAlt);
+    //Serial.print("Lat: ");
+    //Serial.print(lat);
+    //Serial.print(" Long: ");
+    //Serial.print(longit);
+    //Serial.print(" Current Alt: ");
+    //Serial.println(currAlt);
 
     //print data to SD
     GPSSD();
@@ -491,14 +497,20 @@ void GPSSD()
      String dataString = latstr + " " + longitstr + " " + currALTstr;
      
      File dataFile = SD.open("gps.txt", FILE_WRITE);
+     delay(100);
      if (dataFile) {
         dataFile.println(dataString);
-        dataFile.flush(); 
-        dataFile.close();   
+
+        delay(100); 
+        dataFile.close();  
+        delay(300); 
      }  
         // if the file isn't open, pop up an error:
      else {
-        Serial.println("error opening gps.txt");
+        //Serial.print("gps text fail");
+        digitalWrite(LED_YELLOW, HIGH);
+        delay(100);
+        digitalWrite(LED_YELLOW, LOW);
      }       
   }      
 }
@@ -506,17 +518,17 @@ void GPSSD()
 //4.2.2 GPS Boundary Box
 //CHECK IF THE BALLOON IS IN THE BOUNDARY BOX
 boolean inBdryBox() {
-  //Serial.print("lat: "); Serial.print(lat); Serial.print(" max lat: "); Serial.print(maxLat); // Debug
-  //Serial.print("long: "); Serial.print(longit); Serial.print(" max long: "); Serial.print(maxLong);
-  //Serial.print("currAlt: "); Serial.print(currAlt);
+  ////Serial.print("lat: "); //Serial.print(lat); //Serial.print(" max lat: "); //Serial.print(maxLat); //Serial.print(" min lat: "); //Serial.print(minLat); // Debug
+  ////Serial.print("long: "); //Serial.print(longit); //Serial.print(" max long: "); //Serial.print(maxLong); //Serial.print(" min long: "); //Serial.print(minLong);
+  ////Serial.print("currAlt: "); //Serial.print(currAlt);
   if ((lat < maxLat) && (lat > minLat) && (longit < maxLong) && (longit > minLong) && (currAlt < 29000)) 
   {
-    //Serial.println("I'm in bdry"); //Debug
+    ////Serial.println("I'm in bdry"); //Debug
     return true;
   }
   else
   {
-    //Serial.println("I'm not in bdry"); //Debug
+    ////Serial.println("I'm not in bdry"); //Debug
     return false;
   }
 }
@@ -562,15 +574,21 @@ void nichromeCheck()
 {
   if (!inBdryBox())
   {
-    Serial.println("Outside Bdry Box!");
+    //Serial.println("Outside Bdry Box!");
   }
   if (isFalling())
   {
-    Serial.println("Falling!");
+    //Serial.println("Falling!");
   }
   if (!inBdryBox() && !isFalling())
   {
-    startNichrome();
+    nichromeCounter++;
+      if(nichromeCounter >= 300){
+      startNichrome();
+      }
+  }
+  else{
+    nichromeCounter = 0;
   }
   updateNichrome();
 }
@@ -586,7 +604,7 @@ void initNichrome()
 void updateNichrome()
 {
   if (nichromeStarted && !nichromeFinished && nichromeEndTime < millis()) {
-    Serial.println("NICHROME DEACTIVATING");
+    //Serial.println("NICHROME DEACTIVATING");
     digitalWrite(NICHROME_GATE_PIN, LOW);
     nichromeFinished = true;
   }
@@ -595,7 +613,7 @@ void updateNichrome()
 void startNichrome()
 {
   if (!nichromeStarted) {
-    Serial.println("NICHROME ACTIVATING");
+    //Serial.println("NICHROME ACTIVATING");
     nichromeStarted = true;
     digitalWrite(NICHROME_GATE_PIN, HIGH);// 128//This duty cycle is an estimate. You might need to increase it. Test.
     nichromeEndTime = millis() + 5000;//Again, 5000 ms is an estimate... <- CHANGE!!!
@@ -611,13 +629,20 @@ void readTempVoltage()
   File dataFile = SD.open("temperature.txt", FILE_WRITE);
   SD.open("temperature.txt", FILE_WRITE);
   if (dataFile) {
-     dataFile.println((String)tempVoltage1 + "," + (String)tempVoltage2);
-     dataFile.flush(); 
+     dataFile.print(millis());
+     dataFile.print(",");
+     dataFile.print((String)tempVoltage1);
+     dataFile.print(",");
+     dataFile.print((String)tempVoltage2);
+      
      dataFile.close();   
  }  
     // if the file isn't open, pop up an error:
    else {
-     Serial.println("error opening temperature.txt");
+     //Serial.print("temp text fail");
+     digitalWrite(LED_YELLOW, HIGH);
+     delay(100);
+     digitalWrite(LED_YELLOW, LOW);
  }       
 }
 
@@ -630,12 +655,15 @@ boolean sanityCheck()
   
   if (!inBdryBox()){
     bdryBool =  false;
+    ////Serial.println("bdry"); //Debug
   }
   if (isFalling()){
     fallingBool =  false;
+    ////Serial.println("falling"); //Debug
   }
   if ((currAlt == -1) || (lat == -1) || (longit == -1)){
     gpsBool =  false;
+    ////Serial.println("gpsbool"); //Debug
   }
 
   sanitySerial_SD_LED(bdryBool, fallingBool, gpsBool);
@@ -657,7 +685,7 @@ void sanitySerial_SD_LED(boolean bdryBool, boolean fallingBool, boolean gpsBool)
      boolean myFallingBool = fallingBool;
      boolean myGpsBool = gpsBool;
       if(!myBdryBool || !myFallingBool || !myGpsBool){
-        //Serial.println("Sanity: Outside of Boundary Box");
+        //Serial.println("no sane");
         if(!redLightOn){
           redLightBlinkStop = millis() + 1000;
           digitalWrite(LED_RED, HIGH);
@@ -708,7 +736,7 @@ void initNichromeExperiment()
 void updateNichromeExperiment()
 {
   if (nichromeExperimentStarted && !nichromeExperimentFinished && nichromeExperimentEndTime < millis()) {
-    Serial.println("NICHROME EXPERIMENT DEACTIVATING");
+    //Serial.println("NICHROME EXPERIMENT DEACTIVATING");
     digitalWrite(NICHROME_EXPERIMENT_PIN, LOW);
     nichromeExperimentFinished = true;
   }
@@ -717,7 +745,7 @@ void updateNichromeExperiment()
 void startNichromeExperiment()
 {
   if (!nichromeStarted) {
-    Serial.println("NICHROME ACTIVATING");
+    //Serial.println("NICHROME ACTIVATING");
     nichromeExperimentStarted = true;
     digitalWrite(NICHROME_EXPERIMENT_PIN, HIGH);
     nichromeExperimentEndTime = millis() + 2000;
@@ -733,6 +761,8 @@ void updateServo()
       myservo.write(30);
       delay(100);
       int sensorValue = analogRead(A4); 
+      dataFile.print(millis());
+      dataFile.print(",");
       dataFile.print("30: ") ;
       dataFile.println(sensorValue); 
       delay(1); 
@@ -742,6 +772,8 @@ void updateServo()
       myservo.write(60);
       delay(100);
       int sensorValue = analogRead(A4);
+      dataFile.print(millis());
+      dataFile.print(",");
       dataFile.print("60: ") ;
       dataFile.println(sensorValue); 
       delay(1); 
@@ -751,6 +783,8 @@ void updateServo()
       myservo.write(90);
       delay(100);
       int sensorValue = analogRead(A4);
+      dataFile.print(millis());
+      dataFile.print(",");
       dataFile.print("90: ") ;
       dataFile.println(sensorValue); 
       delay(1); 
@@ -769,6 +803,8 @@ void updateServo()
       myservo.write(150);
       delay(100);
       int sensorValue = analogRead(A4);
+      dataFile.print(millis());
+      dataFile.print(",");
       dataFile.print("150: ") ;
       dataFile.println(sensorValue); 
       delay(1); 
@@ -776,16 +812,23 @@ void updateServo()
     }
     else if(counter == 5){
       myservo.write(180);
-      delay(100);
+      delay(200);
       int sensorValue = analogRead(A4);
+      dataFile.print(millis());
+      dataFile.print(",");
       dataFile.print("180: ") ;
       dataFile.println(sensorValue); 
       delay(1); 
       counter = 0;
     }
-    dataFile.flush(); 
+     
     dataFile.close(); 
-  }  
+  }
+  else{
+    digitalWrite(LED_YELLOW, HIGH);
+    delay(100);
+    digitalWrite(LED_YELLOW, LOW);  
+  }
 }
 
 
